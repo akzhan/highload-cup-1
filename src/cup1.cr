@@ -1,0 +1,501 @@
+require "zip"
+require "json"
+require "time"
+require "http/server"
+require "comparable"
+
+def bad_request! : NoReturn
+  raise "bad_request!"
+end
+
+class NotFoundException < Exception
+end
+
+def not_found! : NoReturn
+  raise NotFoundException.new
+end
+
+class ValueAbsence
+  def initialize(pull = nil)
+    raise "oops" if pull
+  end
+end
+
+Absence = ValueAbsence.new
+
+class StorageUser
+  JSON.mapping(
+    first_name: String,
+    last_name: String,
+    birth_date: Int64,
+    gender: String,
+    email: String,
+    id: Int32
+  )
+end
+
+class StorageLocation
+  JSON.mapping(
+    country: String,
+    city: String,
+    place: String,
+    distance: UInt32,
+    id: Int32
+  )
+end
+
+class StorageVisit
+  JSON.mapping(
+    visited_at: Int64,
+    user: Int32,
+    location: Int32,
+    id: Int32,
+    mark: UInt8
+  )
+end
+
+Users     = Hash(Int32, User).new(initial_capacity: 32768)
+Locations = Hash(Int32, Location).new(initial_capacity: 32768)
+Visits    = Hash(Int32, Visit).new(initial_capacity: 32768)
+
+class User < StorageUser
+  property visits : Array(Visit)
+  property? sorted_visits : Bool
+
+  def initialize(storage_user)
+    bad_request! if storage_user.gender != "m" && storage_user.gender != "f"
+    @id = storage_user.id
+    @first_name = storage_user.first_name
+    @last_name = storage_user.last_name
+    @birth_date = storage_user.birth_date
+    @gender = storage_user.gender
+    @email = storage_user.email
+    @visits = [] of Visit
+    @sorted_visits = false
+  end
+
+  def assign(update_user) : Nil
+    unless (i = update_user.id).is_a?(ValueAbsence)
+      bad_request! if i != id
+    end
+    unless (fn = update_user.first_name).is_a?(ValueAbsence)
+      self.first_name = fn.not_nil!
+    end
+    unless (ln = update_user.last_name).is_a?(ValueAbsence)
+      self.last_name = ln.not_nil!
+    end
+    unless (bd = update_user.birth_date).is_a?(ValueAbsence)
+      self.birth_date = bd.not_nil!
+    end
+    unless (g = update_user.gender).is_a?(ValueAbsence)
+      if g != "m" && g != "f"
+        bad_request!
+      end
+      self.gender = g.not_nil!
+    end
+    unless (e = update_user.email).is_a?(ValueAbsence)
+      self.email = e.not_nil!
+    end
+  end
+
+  def sort_visits! : Nil
+    unless sorted_visits?
+      visits.sort!
+      self.sorted_visits = true
+    end
+  end
+
+  def push_visit(visit) : Nil
+    visits << visit
+    self.sorted_visits = false
+  end
+end
+
+class Location < StorageLocation
+  property visits : Array(Visit)
+  property? sorted_visits : Bool
+
+  def initialize(storage_location)
+    @id = storage_location.id
+    @country = storage_location.country
+    @city = storage_location.city
+    @distance = storage_location.distance
+    @place = storage_location.place
+    @visits = [] of Visit
+    @sorted_visits = false
+  end
+
+  def assign(update_location) : Nil
+    unless (i = update_location.id).is_a?(ValueAbsence)
+      bad_request! if i != id
+    end
+    unless (c = update_location.country).is_a?(ValueAbsence)
+      self.country = c.not_nil!
+    end
+    unless (ci = update_location.city).is_a?(ValueAbsence)
+      self.city = ci.not_nil!
+    end
+    unless (di = update_location.distance).is_a?(ValueAbsence)
+      self.distance = di.not_nil!
+    end
+    unless (pl = update_location.place).is_a?(ValueAbsence)
+      self.place = pl.not_nil!
+    end
+  end
+
+  def sort_visits!
+    unless sorted_visits?
+      visits.sort!
+      self.sorted_visits = true
+    end
+  end
+
+  def push_visit(visit)
+    visits << visit
+    self.sorted_visits = false
+  end
+end
+
+class Visit < StorageVisit
+  include Comparable(Visit)
+
+  def initialize(storage_visit)
+    @id = storage_visit.id
+    @user = storage_visit.user
+    @location = storage_visit.location
+    @visited_at = storage_visit.visited_at
+    @mark = storage_visit.mark
+  end
+
+  def <=>(other : Visit)
+    visited_at <=> other.visited_at
+  end
+
+  def assign(update_visit) : Nil
+    unless (i = update_visit.id).is_a?(ValueAbsence)
+      bad_request! if i != id
+    end
+    update_visit.id = id
+    unless (m = update_visit.mark).is_a?(ValueAbsence)
+      if m.not_nil! > 5 # unsigned
+        bad_request!
+      end
+      self.mark = m.not_nil!
+    end
+    # to optimize
+    if !(u = update_visit.user).is_a?(ValueAbsence) && u != user
+      u = u.not_nil!
+      bad_request! unless Users.has_key?(u)
+      Users[user].visits.delete(self)
+      self.user = u
+      Users[user].push_visit self
+    end
+    if !(l = update_visit.location).is_a?(ValueAbsence) && l != location
+      l = l.not_nil!
+      bad_request! unless Locations.has_key?(l)
+      Locations[location].visits.delete(self)
+      self.location = l
+      Locations[location].push_visit self
+    end
+    if !(vat = update_visit.visited_at).is_a?(ValueAbsence) && vat != visited_at
+      self.visited_at = vat.not_nil!
+      Users[user].sorted_visits = false
+      Locations[location].sorted_visits = false
+    end
+  end
+end
+
+class UpdateUser
+  JSON.mapping(
+    id: {type: Int32 | ValueAbsence | Nil, nilable: true, default: Absence},
+    first_name: {type: String | ValueAbsence | Nil, nilable: true, default: Absence},
+    last_name: {type: String | ValueAbsence | Nil, nilable: true, default: Absence},
+    birth_date: {type: Int64 | ValueAbsence | Nil, nilable: true, default: Absence},
+    gender: {type: String | ValueAbsence | Nil, nilable: true, default: Absence},
+    email: {type: String | ValueAbsence | Nil, nilable: true, default: Absence}
+  )
+end
+
+class UpdateLocation
+  JSON.mapping(
+    id: {type: Int32 | ValueAbsence | Nil, nilable: true, default: Absence},
+    country: {type: String | ValueAbsence | Nil, nilable: true, default: Absence},
+    city: {type: String | ValueAbsence | Nil, nilable: true, default: Absence},
+    place: {type: String | ValueAbsence | Nil, nilable: true, default: Absence},
+    distance: {type: UInt32 | ValueAbsence | Nil, nilable: true, default: Absence}
+  )
+end
+
+class UpdateVisit
+  JSON.mapping(
+    id: {type: Int32 | ValueAbsence | Nil, nilable: true, default: Absence},
+    visited_at: {type: Int64 | ValueAbsence | Nil, nilable: true, default: Absence},
+    user: {type: Int32 | ValueAbsence | Nil, nilable: true, default: Absence},
+    location: {type: Int32 | ValueAbsence | Nil, nilable: true, default: Absence},
+    mark: {type: UInt8 | ValueAbsence | Nil, nilable: true, default: Absence}
+  )
+end
+
+Zip::File.open("/tmp/data/data.zip") do |file|
+  file.entries.each do |entry|
+    m = /(?:^|\/)(users|locations|visits)_(\d+)\.json$/.match(entry.filename)
+    next if m.nil?
+    entity_type = m[1]
+    case entity_type
+    when "users"
+      entry.open do |io|
+        arr = Array(StorageUser).from_json(io, "users")
+        arr.each do |u|
+          Users[u.id] = User.new(u)
+        end
+      end
+    when "locations"
+      entry.open do |io|
+        arr = Array(StorageLocation).from_json(io, "locations")
+        arr.each do |l|
+          Locations[l.id] = Location.new(l)
+        end
+      end
+    when "visits"
+      entry.open do |io|
+        arr = Array(StorageVisit).from_json(io, "visits")
+        arr.each do |v|
+          Visits[v.id] = Visit.new(v)
+        end
+      end
+    end
+  end
+end
+
+# visits per user/location
+Visits.each_value do |visit|
+  u = Users[visit.user]
+  u.visits << visit
+  l = Locations[visit.location]
+  l.visits << visit
+end
+
+# visits sorted by visited_at
+Users.each_value do |u|
+  u.sort_visits!
+end
+Locations.each_value do |l|
+  l.sort_visits!
+end
+
+def get_int_param(params, key)
+  value = params[key]?
+  return nil if value.nil?
+  value.to_i32
+end
+
+def get_uint_param(params, key)
+  value = get_int_param(params, key)
+  return nil if value.nil?
+  bad_request! if value < 0
+  value
+end
+
+middlewares = ENV.has_key?("CUP_DEBUG") ? [
+  HTTP::ErrorHandler.new(verbose: true),
+  HTTP::LogHandler.new,
+] : [
+  HTTP::ErrorHandler.new,
+]
+
+server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
+  context.response.content_type = "application/json; charset=utf-8"
+  begin
+    case context.request.method
+    when "GET"
+      case context.request.path
+      when %r{^/users/([+\-]?\d+)$}
+        u = Users[$1.to_i32] rescue not_found!
+        u.to_json(context.response)
+      when %r{^/locations/([+\-]?\d+)$}
+        l = Locations[$1.to_i32] rescue not_found!
+        l.to_json(context.response)
+      when %r{^/visits/([+\-]?\d+)$}
+        v = Visits[$1.to_i32] rescue not_found!
+        v.to_json(context.response)
+      when %r{^/users/([+\-]?\d+)/visits$}
+        u = Users[$1.to_i32] rescue not_found!
+        params = context.request.query_params
+        from_date = get_int_param(params, "fromDate")
+        to_date = get_int_param(params, "toDate")
+        country = params["country"]?
+        to_distance = get_uint_param(params, "toDistance")
+
+        if u.visits.empty?
+          context.response.print "{\"visits\": []}"
+          next
+        end
+
+        u.sort_visits!
+        dated_visits = u.visits
+
+        JSON.build(context.response) do |json|
+          # if !from_date.nil?
+          #   idx = dated_visits.bsearch_index { |x, i| x.visited_at > from_date }
+          #   unless idx.nil?
+          #     dated_visits = dated_visits[idx, dated_visits.size - idx]
+          #   end
+          # end
+          # if !dated_visits.empty? && !to_date.nil?
+          #   idx = dated_visits.bsearch_index { |x, i| x.visited_at >= to_date }
+          #   unless idx.nil?
+          #     dated_visits = dated_visits[0, idx]
+          #   end
+          # end
+          json.object do
+            json.field "visits" do
+              json.array do
+                dated_visits.each do |visit|
+                  next if !from_date.nil? && from_date >= visit.visited_at
+                  next if !to_date.nil? && to_date <= visit.visited_at
+                  next if !country.nil? && country != Locations[visit.location].country
+                  next if !to_distance.nil? && to_distance <= Locations[visit.location].distance
+                  json.object do
+                    json.field "mark", visit.mark
+                    json.field "visited_at", visit.visited_at
+                    json.field "place", Locations[visit.location].place
+                  end
+                end
+              end
+            end
+          end
+        end
+      when %r{^/locations/([+\-]?\d+)/avg$}
+        l = Locations[$1.to_i32] rescue not_found!
+        params = context.request.query_params
+        from_date = get_int_param(params, "fromDate")
+        to_date = get_int_param(params, "toDate")
+        from_age = get_uint_param(params, "fromAge")
+        to_age = get_uint_param(params, "toAge")
+        gender = params["gender"]?
+
+        if !gender.nil? && gender != "m" && gender != "f"
+          bad_request!
+        end
+
+        # ages to dates
+        now = Time.now
+        from_birth_date = from_age.nil? ? nil : (now - from_age.years).epoch
+        to_birth_date = to_age.nil? ? nil : (now - to_age.years).epoch
+
+        avg = 0_f32
+        unless l.visits.empty?
+          l.sort_visits!
+          dated_visits = l.visits
+          # if !from_date.nil?
+          #   idx = dated_visits.bsearch_index { |x, i| x.visited_at > from_date }
+          #   unless idx.nil?
+          #     dated_visits = dated_visits[idx, dated_visits.size - idx]
+          #   end
+          # end
+          # if !to_date.nil? && !dated_visits.empty?
+          #   idx = dated_visits.bsearch_index { |x, i| x.visited_at >= to_date }
+          #   unless idx.nil?
+          #     dated_visits = dated_visits[0, idx]
+          #   end
+          # end
+          count, sum = 0, 0
+          dated_visits.each do |visit|
+            next if !from_date.nil? && from_date >= visit.visited_at
+            next if !to_date.nil? && to_date <= visit.visited_at
+            next if !gender.nil? && gender != Users[visit.user].gender
+            next if !from_birth_date.nil? && from_birth_date <= Users[visit.user].birth_date
+            next if !to_birth_date.nil? && to_birth_date >= Users[visit.user].birth_date
+            count += 1
+            sum += visit.mark
+          end
+          avg = sum.to_f32 / count unless count.zero?
+        end
+        avg = (avg * 100000_f32).round / 100000_f32
+        savg = "%0.5f" % avg
+        savg += ".0" if savg !~ /\./
+        context.response.print "{\"avg\": #{savg}}"
+      else
+        not_found!
+      end
+    when "POST"
+      case context.request.path
+      when "/users/new"
+        new_u = User.new(StorageUser.from_json(context.request.body.not_nil!))
+        bad_request! if Users.has_key?(new_u.id)
+        Users[new_u.id] = new_u
+        context.response.print "{}"
+      when "/locations/new"
+        new_l = Location.new(StorageLocation.from_json(context.request.body.not_nil!))
+        bad_request! if Locations.has_key?(new_l.id)
+        Locations[new_l.id] = new_l
+        context.response.print "{}"
+      when "/visits/new"
+        new_v = Visit.new(StorageVisit.from_json(context.request.body.not_nil!))
+        bad_request! if Visits.has_key?(new_v.id)
+        bad_request! unless Users.has_key?(new_v.user)
+        bad_request! unless Locations.has_key?(new_v.location)
+        Visits[new_v.id] = new_v
+        Users[new_v.user].visits << new_v
+        Locations[new_v.location].visits << new_v
+        context.response.print "{}"
+      when %r{^/users/([+\-]?\d+)$}
+        u = Users[$1.to_i32] rescue not_found!
+        new_u = UpdateUser.from_json(context.request.body.not_nil!)
+        u.assign(new_u)
+        context.response.print "{}"
+      when %r{^/locations/([+\-]?\d+)$}
+        l = Locations[$1.to_i32] rescue not_found!
+        new_l = UpdateLocation.from_json(context.request.body.not_nil!)
+        l.assign(new_l)
+        context.response.print "{}"
+      when %r{^/visits/([+\-]?\d+)$}
+        v = Visits[$1.to_i32] rescue not_found!
+        new_v = UpdateVisit.from_json(context.request.body.not_nil!)
+        v.assign(new_v)
+        context.response.print "{}"
+      else
+        not_found!
+      end
+    else
+      not_found!
+    end
+  rescue NotFoundException
+    context.response.status_code = 404
+    context.response.print "{}"
+  rescue
+    context.response.status_code = 400
+    context.response.print "{}"
+  end
+end
+
+master = false
+children = [] of Process
+
+Signal::TERM.trap do
+  puts "#{Process.pid} term"
+  exit unless master
+  children.each { |p| p.kill(Signal::TERM) }
+end
+
+Signal::INT.trap do
+  puts "#{Process.pid} int"
+  exit unless master
+  children.each { |p| p.kill(Signal::INT) }
+end
+
+server.listen
+
+exit
+
+CpuCount = System.cpu_count || 1
+
+CpuCount.times do
+  children << Process.fork do
+    master = false
+    puts "#{Process.pid}: Listening on http://0.0.0.0:80"
+    server.listen(reuse_port: true)
+  end
+end
+
+children.each { |p| p.wait }

@@ -8,8 +8,8 @@ targets:
   cup1:
     main: src/cup1.cr
 
-# description: |
-#   Short description of highload-cup-1
+description: |
+  [Первый раунд Highload Cup 2017](https://highloadcup.ru/round/1/)
 
 # dependencies:
 #   pg:
