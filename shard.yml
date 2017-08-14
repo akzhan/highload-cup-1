@@ -1,0 +1,23 @@
+name: highload-cup-1
+version: 0.1.0
+
+authors:
+  - Akzhan Abdulin <akzhan.abdulin@gmail.com>
+
+targets:
+  cup1:
+    main: src/cup1.cr
+
+# description: |
+#   Short description of highload-cup-1
+
+# dependencies:
+#   pg:
+#     github: will/crystal-pg
+#     version: "~> 0.5"
+
+# development_dependencies:
+#   webmock:
+#     github: manastech/webmock.cr
+
+license: MIT
