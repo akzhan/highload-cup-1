@@ -237,6 +237,14 @@ class UpdateVisit
   )
 end
 
+emulated_now = if File.exists?("/tmp/data/options.txt")
+  File.open("/tmp/data/options.txt") do |f|
+    Time.epoch(f.gets.not_nil!.to_i64)
+  end
+else
+  File.stat("/tmp/data/data.zip").mtime
+end
+
 Zip::File.open("/tmp/data/data.zip") do |file|
   file.entries.each do |entry|
     m = /(?:^|\/)(users|locations|visits)_(\d+)\.json$/.match(entry.filename)
@@ -380,7 +388,7 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
         end
 
         # ages to dates
-        now = Time.now
+        now = emulated_now
         from_birth_date = from_age.nil? ? nil : (now - from_age.years).epoch
         to_birth_date = to_age.nil? ? nil : (now - to_age.years).epoch
 

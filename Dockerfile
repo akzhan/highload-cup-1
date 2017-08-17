@@ -8,6 +8,7 @@ RUN shards build --production
 FROM scratch
 
 COPY data/data.zip /tmp/data/data.zip
+COPY data/options.txt /tmp/data/options.txt
 
 COPY --from=0 /lib/x86_64-linux-gnu/libpthread.so.0 /lib/x86_64-linux-gnu/libpthread.so.0
 COPY --from=0 /lib/x86_64-linux-gnu/libpthread-2.23.so /lib/x86_64-linux-gnu/libpthread-2.23.so
