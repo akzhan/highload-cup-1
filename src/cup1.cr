@@ -354,6 +354,7 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
       if updates_passed # Second phase passed
         GC.collect
         GC.disable
+        updates_passed = false
       end
 
       case context.request.path
@@ -466,7 +467,8 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
         savg += ".0" if savg !~ /\./
         context.response.print "{\"avg\": #{savg}}"
       else
-        not_found!
+        context.response.status_code = 404
+        context.response.print "{}"
       end
     when "POST"
       updates_passed = true
@@ -507,10 +509,12 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
         v.assign(new_v)
         context.response.print "{}"
       else
-        not_found!
+        context.response.status_code = 404
+        context.response.print "{}"
       end
     else
-      not_found!
+      context.response.status_code = 404
+      context.response.print "{}"
     end
   rescue NotFoundException
     context.response.status_code = 404
