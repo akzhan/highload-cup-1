@@ -177,10 +177,11 @@ class Visit < StorageVisit
     end
     update_visit.id = id
     unless (m = update_visit.mark).is_a?(ValueAbsence)
-      if m.not_nil! > 5 # unsigned
+      m = m.not_nil!
+      if m > 5 # unsigned
         bad_request!
       end
-      self.mark = m.not_nil!
+      self.mark = m
     end
     # to optimize
     if !(u = update_visit.user).is_a?(ValueAbsence) && u != user
@@ -487,6 +488,10 @@ end
 server.listen
 
 exit
+
+# multiprocessing requires any form of synchronization
+# between master and child processes.
+# not implemented here.
 
 CpuCount = System.cpu_count || 1
 
