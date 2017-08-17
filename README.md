@@ -8,8 +8,12 @@ See also [HighLoad Cup](https://highloadcup.ru/round/1/).
 
 ```bash
 docker build . -t cup1
-docker run -p 8080:80 -t cup1
+```
 
+## Run
+
+```bash
+docker run -p 8080:80 -t cup1
 ```
 
 Now available at localhost:8080
@@ -19,3 +23,8 @@ Now available at localhost:8080
 ```bash
 docker stop $(docker ps -a -q --filter ancestor=cup1)
 ```
+
+## See also
+
+* [How to test, sample data](https://github.com/sat2707/hlcupdocs).
+* [Third-party test tool](https://github.com/AterCattus/highloadcup_tester).
