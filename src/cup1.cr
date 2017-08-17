@@ -24,12 +24,12 @@ class Object
 end
 
 class ValueAbsence
+  Absence = ValueAbsence.new
+
   def initialize(pull = nil)
     raise "oops" if pull # should never be pulled by JSON parser
   end
 end
-
-Absence = ValueAbsence.new
 
 class StorageUser
   JSON.mapping(
@@ -216,32 +216,32 @@ end
 
 class UpdateUser
   JSON.mapping(
-    id: {type: Int32 | ValueAbsence | Nil, nilable: true, default: Absence},
-    first_name: {type: String | ValueAbsence | Nil, nilable: true, default: Absence},
-    last_name: {type: String | ValueAbsence | Nil, nilable: true, default: Absence},
-    birth_date: {type: Int64 | ValueAbsence | Nil, nilable: true, default: Absence},
-    gender: {type: String | ValueAbsence | Nil, nilable: true, default: Absence},
-    email: {type: String | ValueAbsence | Nil, nilable: true, default: Absence}
+    id: {type: Int32 | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence},
+    first_name: {type: String | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence},
+    last_name: {type: String | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence},
+    birth_date: {type: Int64 | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence},
+    gender: {type: String | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence},
+    email: {type: String | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence}
   )
 end
 
 class UpdateLocation
   JSON.mapping(
-    id: {type: Int32 | ValueAbsence | Nil, nilable: true, default: Absence},
-    country: {type: String | ValueAbsence | Nil, nilable: true, default: Absence},
-    city: {type: String | ValueAbsence | Nil, nilable: true, default: Absence},
-    place: {type: String | ValueAbsence | Nil, nilable: true, default: Absence},
-    distance: {type: UInt32 | ValueAbsence | Nil, nilable: true, default: Absence}
+    id: {type: Int32 | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence},
+    country: {type: String | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence},
+    city: {type: String | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence},
+    place: {type: String | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence},
+    distance: {type: UInt32 | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence}
   )
 end
 
 class UpdateVisit
   JSON.mapping(
-    id: {type: Int32 | ValueAbsence | Nil, nilable: true, default: Absence},
-    visited_at: {type: Int64 | ValueAbsence | Nil, nilable: true, default: Absence},
-    user: {type: Int32 | ValueAbsence | Nil, nilable: true, default: Absence},
-    location: {type: Int32 | ValueAbsence | Nil, nilable: true, default: Absence},
-    mark: {type: UInt8 | ValueAbsence | Nil, nilable: true, default: Absence}
+    id: {type: Int32 | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence},
+    visited_at: {type: Int64 | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence},
+    user: {type: Int32 | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence},
+    location: {type: Int32 | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence},
+    mark: {type: UInt8 | ValueAbsence | Nil, nilable: true, default: ValueAbsence::Absence}
   )
 end
 
