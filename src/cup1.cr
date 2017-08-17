@@ -391,8 +391,8 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
             json.field "visits" do
               json.array do
                 dated_visits.each do |visit|
-                  next if !from_date.nil? && from_date >= visit.visited_at
-                  next if !to_date.nil? && to_date <= visit.visited_at
+                  # next if !from_date.nil? && from_date >= visit.visited_at
+                  # next if !to_date.nil? && to_date <= visit.visited_at
                   next if !country.nil? && country != Locations[visit.location].country
                   next if !to_distance.nil? && to_distance <= Locations[visit.location].distance
                   json.object do
@@ -441,8 +441,8 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
           end
           count, sum = 0, 0
           dated_visits.each do |visit|
-            next if !from_date.nil? && from_date >= visit.visited_at
-            next if !to_date.nil? && to_date <= visit.visited_at
+            # next if !from_date.nil? && from_date >= visit.visited_at
+            # next if !to_date.nil? && to_date <= visit.visited_at
             next if !gender.nil? && gender != Users[visit.user].gender
             next if !from_birth_date.nil? && from_birth_date <= Users[visit.user].birth_date
             next if !to_birth_date.nil? && to_birth_date >= Users[visit.user].birth_date
