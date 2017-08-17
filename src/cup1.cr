@@ -375,18 +375,18 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
         dated_visits = u.visits
 
         JSON.build(context.response) do |json|
-          # if !from_date.nil?
-          #   idx = dated_visits.bsearch_index { |x, i| x.visited_at > from_date }
-          #   unless idx.nil?
-          #     dated_visits = dated_visits[idx, dated_visits.size - idx]
-          #   end
-          # end
-          # if !dated_visits.empty? && !to_date.nil?
-          #   idx = dated_visits.bsearch_index { |x, i| x.visited_at >= to_date }
-          #   unless idx.nil?
-          #     dated_visits = dated_visits[0, idx]
-          #   end
-          # end
+          if !from_date.nil?
+            idx = dated_visits.bsearch_index { |x, i| x.visited_at > from_date }
+            unless idx.nil?
+              dated_visits = dated_visits[idx, dated_visits.size - idx]
+            end
+          end
+          if !dated_visits.empty? && !to_date.nil?
+            idx = dated_visits.bsearch_index { |x, i| x.visited_at >= to_date }
+            unless idx.nil?
+              dated_visits = dated_visits[0, idx]
+            end
+          end
           json.object do
             json.field "visits" do
               json.array do
@@ -427,18 +427,18 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
         unless l.visits.empty?
           l.sort_visits! if !from_date.nil? || !to_date.nil? # sort useless unless filter on
           dated_visits = l.visits
-          # if !from_date.nil?
-          #   idx = dated_visits.bsearch_index { |x, i| x.visited_at > from_date }
-          #   unless idx.nil?
-          #     dated_visits = dated_visits[idx, dated_visits.size - idx]
-          #   end
-          # end
-          # if !to_date.nil? && !dated_visits.empty?
-          #   idx = dated_visits.bsearch_index { |x, i| x.visited_at >= to_date }
-          #   unless idx.nil?
-          #     dated_visits = dated_visits[0, idx]
-          #   end
-          # end
+          if !from_date.nil?
+            idx = dated_visits.bsearch_index { |x, i| x.visited_at > from_date }
+            unless idx.nil?
+              dated_visits = dated_visits[idx, dated_visits.size - idx]
+            end
+          end
+          if !to_date.nil? && !dated_visits.empty?
+            idx = dated_visits.bsearch_index { |x, i| x.visited_at >= to_date }
+            unless idx.nil?
+              dated_visits = dated_visits[0, idx]
+            end
+          end
           count, sum = 0, 0
           dated_visits.each do |visit|
             next if !from_date.nil? && from_date >= visit.visited_at
