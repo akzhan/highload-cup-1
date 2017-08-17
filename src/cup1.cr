@@ -339,6 +339,7 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
     when "GET"
       if updates_passed # Second phase passed
         GC.collect
+        updates_passed = false
       end
 
       case context.request.path
