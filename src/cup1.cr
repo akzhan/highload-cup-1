@@ -375,6 +375,7 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
         dated_visits = u.visits
 
         JSON.build(context.response) do |json|
+          # one of binary searches wrong and need some investigation
           if !from_date.nil?
             idx = dated_visits.bsearch_index { |x, i| x.visited_at > from_date }
             unless idx.nil?
@@ -427,6 +428,7 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
         unless l.visits.empty?
           l.sort_visits! if !from_date.nil? || !to_date.nil? # sort useless unless filter on
           dated_visits = l.visits
+          # one of binary searches wrong and need some investigation
           if !from_date.nil?
             idx = dated_visits.bsearch_index { |x, i| x.visited_at > from_date }
             unless idx.nil?
