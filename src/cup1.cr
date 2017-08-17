@@ -79,6 +79,9 @@ class User < StorageUser
   property visits : Array(Visit)
   property? sorted_visits : Bool
 
+  MIN_BIRTH_DATE = Time.new(1930, 1, 1).epoch
+  MAX_BIRTH_DATE = Time.new(1999, 1, 1).epoch
+
   def initialize(storage_user)
     bad_request! if storage_user.gender != "m" && storage_user.gender != "f"
     @id = storage_user.id
@@ -94,6 +97,9 @@ class User < StorageUser
   def assign(update_user) : Nil
     update_user.id.on_presence do |i|
       bad_request! if i != id
+    end
+    update_user.birth_date.on_presence do |bd|
+      bad_request! if bd < MIN_BIRTH_DATE || bd > MAX_BIRTH_DATE
     end
     update_user.first_name.on_presence do |fn|
       self.first_name = fn
@@ -160,14 +166,14 @@ class Location < StorageLocation
     end
   end
 
-  def sort_visits!
+  def sort_visits! : Nil
     unless sorted_visits?
       visits.sort!
       self.sorted_visits = true
     end
   end
 
-  def push_visit(visit)
+  def push_visit(visit) : Nil
     visits << visit
     self.sorted_visits = false
   end
@@ -175,6 +181,9 @@ end
 
 class Visit < StorageVisit
   include Comparable(Visit)
+
+  MIN_VISITED_AT = Time.new(2000, 1, 1).epoch
+  MAX_VISITED_AT = Time.new(2015, 1, 1).epoch
 
   def initialize(storage_visit)
     @id = storage_visit.id
@@ -193,6 +202,11 @@ class Visit < StorageVisit
       bad_request! if i != id
     end
     update_visit.id = id
+    update_visit.visited_at.on_presence do |vat|
+      if vat < MIN_VISITED_AT || vat > MAX_VISITED_AT
+        bad_request!
+      end
+    end
     update_visit.mark.on_presence do |m|
       if m > 5 # unsigned
         bad_request!
