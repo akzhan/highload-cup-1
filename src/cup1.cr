@@ -343,11 +343,19 @@ middlewares = ENV.has_key?("CUP_DEBUG") ? [
   HTTP::ErrorHandler.new,
 ]
 
+GC.collect
+updates_passed = false
+
 server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
   context.response.content_type = "application/json; charset=utf-8"
   begin
     case context.request.method
     when "GET"
+      if updates_passed # Second phase passed
+        GC.collect
+        GC.disable
+      end
+
       case context.request.path
       when %r{^/users/([+\-]?\d+)$}
         u = Users[$1.to_i32] rescue not_found!
@@ -461,6 +469,8 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
         not_found!
       end
     when "POST"
+      updates_passed = true
+
       case context.request.path
       when "/users/new"
         new_u = User.new(StorageUser.from_json(context.request.body.not_nil!))
