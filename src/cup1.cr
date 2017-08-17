@@ -4,10 +4,6 @@ require "time"
 require "http/server"
 require "comparable"
 
-def bad_request! : NoReturn
-  raise "bad_request!"
-end
-
 class NotFoundException < Exception
 end
 
@@ -15,9 +11,21 @@ def not_found! : NoReturn
   raise NotFoundException.new
 end
 
+def bad_request! : NoReturn
+  raise "bad_request!"
+end
+
+class Object
+  def on_presence(&block)
+    unless is_a?(ValueAbsence)
+      yield self.not_nil!
+    end
+  end
+end
+
 class ValueAbsence
   def initialize(pull = nil)
-    raise "oops" if pull
+    raise "oops" if pull # should never be pulled by JSON parser
   end
 end
 
@@ -75,25 +83,25 @@ class User < StorageUser
   end
 
   def assign(update_user) : Nil
-    unless (i = update_user.id).is_a?(ValueAbsence)
+    update_user.id.on_presence do |i|
       bad_request! if i != id
     end
-    unless (fn = update_user.first_name).is_a?(ValueAbsence)
-      self.first_name = fn.not_nil!
+    update_user.first_name.on_presence do |fn|
+      self.first_name = fn
     end
-    unless (ln = update_user.last_name).is_a?(ValueAbsence)
-      self.last_name = ln.not_nil!
+    update_user.last_name.on_presence do |ln|
+      self.last_name = ln
     end
-    unless (bd = update_user.birth_date).is_a?(ValueAbsence)
-      self.birth_date = bd.not_nil!
+    update_user.birth_date.on_presence do |bd|
+      self.birth_date = bd
     end
-    unless (g = update_user.gender).is_a?(ValueAbsence)
+    update_user.gender.on_presence do |g|
       if g != "m" && g != "f"
         bad_request!
       end
-      self.gender = g.not_nil!
+      self.gender = g
     end
-    unless (e = update_user.email).is_a?(ValueAbsence)
+    update_user.email.on_presence do |e|
       self.email = e.not_nil!
     end
   end
@@ -126,20 +134,20 @@ class Location < StorageLocation
   end
 
   def assign(update_location) : Nil
-    unless (i = update_location.id).is_a?(ValueAbsence)
+    update_location.id.on_presence do |i|
       bad_request! if i != id
     end
-    unless (c = update_location.country).is_a?(ValueAbsence)
-      self.country = c.not_nil!
+    update_location.country.on_presence do |c|
+      self.country = c
     end
-    unless (ci = update_location.city).is_a?(ValueAbsence)
-      self.city = ci.not_nil!
+    update_location.city.on_presence do |ci|
+      self.city = ci
     end
-    unless (di = update_location.distance).is_a?(ValueAbsence)
-      self.distance = di.not_nil!
+    update_location.distance.on_presence do |di|
+      self.distance = di
     end
-    unless (pl = update_location.place).is_a?(ValueAbsence)
-      self.place = pl.not_nil!
+    update_location.place.on_presence do |pl|
+      self.place = pl
     end
   end
 
@@ -172,34 +180,34 @@ class Visit < StorageVisit
   end
 
   def assign(update_visit) : Nil
-    unless (i = update_visit.id).is_a?(ValueAbsence)
+    update_visit.id.on_presence do |i|
       bad_request! if i != id
     end
     update_visit.id = id
-    unless (m = update_visit.mark).is_a?(ValueAbsence)
-      m = m.not_nil!
+    update_visit.mark.on_presence do |m|
       if m > 5 # unsigned
         bad_request!
       end
       self.mark = m
     end
     # to optimize
-    if !(u = update_visit.user).is_a?(ValueAbsence) && u != user
-      u = u.not_nil!
+    update_visit.user.on_presence do |u|
+      next if u == user
       bad_request! unless Users.has_key?(u)
       Users[user].visits.delete(self)
       self.user = u
       Users[user].push_visit self
     end
-    if !(l = update_visit.location).is_a?(ValueAbsence) && l != location
-      l = l.not_nil!
+    update_visit.location.on_presence do |l|
+      next if l == location
       bad_request! unless Locations.has_key?(l)
       Locations[location].visits.delete(self)
       self.location = l
       Locations[location].push_visit self
     end
-    if !(vat = update_visit.visited_at).is_a?(ValueAbsence) && vat != visited_at
-      self.visited_at = vat.not_nil!
+    update_visit.visited_at.on_presence do |vat|
+      next if vat == visited_at
+      self.visited_at = vat
       Users[user].sorted_visits = false
       Locations[location].sorted_visits = false
     end
@@ -238,12 +246,12 @@ class UpdateVisit
 end
 
 emulated_now = if File.exists?("/tmp/data/options.txt")
-  File.open("/tmp/data/options.txt") do |f|
-    Time.epoch(f.gets.not_nil!.to_i64)
-  end
-else
-  File.stat("/tmp/data/data.zip").mtime
-end
+                 File.open("/tmp/data/options.txt") do |f|
+                   Time.epoch(f.gets.not_nil!.to_i64)
+                 end
+               else
+                 File.stat("/tmp/data/data.zip").mtime
+               end
 
 Zip::File.open("/tmp/data/data.zip") do |file|
   file.entries.each do |entry|
