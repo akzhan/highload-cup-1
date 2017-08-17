@@ -436,8 +436,8 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
         bad_request! unless Users.has_key?(new_v.user)
         bad_request! unless Locations.has_key?(new_v.location)
         Visits[new_v.id] = new_v
-        Users[new_v.user].visits << new_v
-        Locations[new_v.location].visits << new_v
+        Users[new_v.user].push_visit new_v
+        Locations[new_v.location].push_visit new_v
         context.response.print "{}"
       when %r{^/users/([+\-]?\d+)$}
         u = Users[$1.to_i32] rescue not_found!
