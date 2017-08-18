@@ -2,7 +2,6 @@ require "zip"
 require "json"
 require "time"
 require "http/server"
-require "comparable"
 
 class NotFoundException < Exception
 end
@@ -44,7 +43,7 @@ class StorageUser
   JSON.mapping(
     first_name: String,
     last_name: String,
-    birth_date: Int64,
+    birth_date: Int32,
     gender: String,
     email: String,
     id: Int32
@@ -63,7 +62,7 @@ end
 
 class StorageVisit
   JSON.mapping(
-    visited_at: Int64,
+    visited_at: Int32,
     user: Int32,
     location: Int32,
     id: Int32,
@@ -229,7 +228,7 @@ class UpdateUser
     id: {type: Int32 | ValueAbsence | Nil, nilable: true, default: ValueAbsence.absence},
     first_name: {type: String | ValueAbsence | Nil, nilable: true, default: ValueAbsence.absence},
     last_name: {type: String | ValueAbsence | Nil, nilable: true, default: ValueAbsence.absence},
-    birth_date: {type: Int64 | ValueAbsence | Nil, nilable: true, default: ValueAbsence.absence},
+    birth_date: {type: Int32 | ValueAbsence | Nil, nilable: true, default: ValueAbsence.absence},
     gender: {type: String | ValueAbsence | Nil, nilable: true, default: ValueAbsence.absence},
     email: {type: String | ValueAbsence | Nil, nilable: true, default: ValueAbsence.absence}
   )
@@ -248,7 +247,7 @@ end
 class UpdateVisit
   JSON.mapping(
     id: {type: Int32 | ValueAbsence | Nil, nilable: true, default: ValueAbsence.absence},
-    visited_at: {type: Int64 | ValueAbsence | Nil, nilable: true, default: ValueAbsence.absence},
+    visited_at: {type: Int32 | ValueAbsence | Nil, nilable: true, default: ValueAbsence.absence},
     user: {type: Int32 | ValueAbsence | Nil, nilable: true, default: ValueAbsence.absence},
     location: {type: Int32 | ValueAbsence | Nil, nilable: true, default: ValueAbsence.absence},
     mark: {type: UInt8 | ValueAbsence | Nil, nilable: true, default: ValueAbsence.absence}
@@ -320,26 +319,13 @@ def get_uint_param(params, key)
   value
 end
 
-middlewares = ENV.has_key?("CUP_DEBUG") ? [
-  HTTP::ErrorHandler.new(verbose: true),
-  HTTP::LogHandler.new,
-] : [
-  HTTP::ErrorHandler.new,
-]
-
 GC.collect
-updates_passed = false
 
-server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
+server = HTTP::Server.new("0.0.0.0", 80) do |context|
   context.response.content_type = "application/json; charset=utf-8"
   begin
     case context.request.method
     when "GET"
-      if updates_passed # Second phase passed
-        GC.collect
-        updates_passed = false
-      end
-
       case context.request.path
       when %r{^/users/([+\-]?\d+)$}
         u = Users[$1.to_i32] rescue not_found!
@@ -416,7 +402,7 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
         from_birth_date = from_age.nil? ? nil : (now - from_age.years).epoch
         to_birth_date = to_age.nil? ? nil : (now - to_age.years).epoch
 
-        avg = 0_f32
+        avg = 0_f64
         unless l.visits.empty?
           count, sum = 0_u32, 0_u32
           dated_visits = l.visits
@@ -429,19 +415,16 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
             count += 1
             sum += visit.mark
           end
-          avg = sum.to_f64 / count unless count.zero?
+          avg = (sum.to_f64 / count) + 1e-7_f64 unless count.zero?
         end
         avg = (avg * 100000_f64).round / 100000_f64
         savg = "%0.5f" % avg
-        savg += ".0" if savg !~ /\./
         context.response.print "{\"avg\": #{savg}}"
       else
         context.response.status_code = 404
         context.response.print "{}"
       end
     when "POST"
-      updates_passed = true
-
       case context.request.path
       when "/users/new"
         new_u = User.new(StorageUser.from_json(context.request.body.not_nil!))
