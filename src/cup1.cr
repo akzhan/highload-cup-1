@@ -131,6 +131,7 @@ end
 
 class Location < StorageLocation
   property visits : Array(Visit)
+  property? sorted_visits : Bool
 
   def initialize(storage_location)
     @id = storage_location.id
@@ -139,6 +140,7 @@ class Location < StorageLocation
     @distance = storage_location.distance
     @place = storage_location.place
     @visits = [] of Visit
+    @sorted_visits = false
   end
 
   def assign(update_location) : Nil
@@ -159,8 +161,16 @@ class Location < StorageLocation
     end
   end
 
+  def sort_visits! : Nil
+    unless sorted_visits?
+      visits.sort!
+      self.sorted_visits = true
+    end
+  end
+
   def push_visit(visit) : Nil
     visits << visit
+    self.sorted_visits = false
   end
 end
 
@@ -220,6 +230,7 @@ class Visit < StorageVisit
       next if vat == visited_at
       self.visited_at = vat
       Users[user].sorted_visits = false
+      Locations[location].sorted_visits = false
     end
   end
 end
@@ -305,6 +316,9 @@ end
 # visits sorted by visited_at
 Users.each_value do |u|
   u.sort_visits!
+end
+Locations.each_value do |l|
+  l.sort_visits!
 end
 
 def get_int_param(params, key)
@@ -418,8 +432,22 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
 
         avg = 0_f32
         unless l.visits.empty?
+          count, sum = 0_u32, 0_u32
+          l.sort_visits! if !from_date.nil? || !to_date.nil?
           dated_visits = l.visits
-          count, sum = 0, 0
+          # one of binary searches wrong and need some investigation
+          if !from_date.nil?
+            idx = dated_visits.bsearch_index { |x, i| x.visited_at >= from_date }
+            unless idx.nil?
+              dated_visits = dated_visits[idx, dated_visits.size - idx]
+            end
+          end
+          if !dated_visits.empty? && !to_date.nil?
+            idx = dated_visits.bsearch_index { |x, i| x.visited_at >= to_date }
+            unless idx.nil?
+              dated_visits = dated_visits[0, idx]
+            end
+          end
           dated_visits.each do |visit|
             next if !from_date.nil? && from_date >= visit.visited_at
             next if !to_date.nil? && to_date <= visit.visited_at
@@ -429,9 +457,9 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
             count += 1
             sum += visit.mark
           end
-          avg = sum.to_f32 / count unless count.zero?
+          avg = sum.to_f64 / count unless count.zero?
         end
-        avg = (avg * 100000_f32).round / 100000_f32
+        avg = (avg * 100000_f64).round / 100000_f64
         savg = "%0.5f" % avg
         savg += ".0" if savg !~ /\./
         context.response.print "{\"avg\": #{savg}}"
