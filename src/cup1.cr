@@ -79,9 +79,6 @@ class User < StorageUser
   property visits : Array(Visit)
   property? sorted_visits : Bool
 
-  MIN_BIRTH_DATE = Time.new(1930, 1, 1).epoch
-  MAX_BIRTH_DATE = Time.new(1999, 1, 1).epoch
-
   def initialize(storage_user)
     bad_request! if storage_user.gender != "m" && storage_user.gender != "f"
     @id = storage_user.id
@@ -98,8 +95,12 @@ class User < StorageUser
     update_user.id.on_presence do |i|
       bad_request! if i != id
     end
-    update_user.birth_date.on_presence do |bd|
-      bad_request! if bd < MIN_BIRTH_DATE || bd > MAX_BIRTH_DATE
+    update_user.gender.on_presence do |g|
+      # checks before any assignments
+      if g != "m" && g != "f"
+        bad_request!
+      end
+      self.gender = g
     end
     update_user.first_name.on_presence do |fn|
       self.first_name = fn
@@ -109,12 +110,6 @@ class User < StorageUser
     end
     update_user.birth_date.on_presence do |bd|
       self.birth_date = bd
-    end
-    update_user.gender.on_presence do |g|
-      if g != "m" && g != "f"
-        bad_request!
-      end
-      self.gender = g
     end
     update_user.email.on_presence do |e|
       self.email = e.not_nil!
@@ -172,9 +167,6 @@ end
 class Visit < StorageVisit
   include Comparable(Visit)
 
-  MIN_VISITED_AT = Time.new(2000, 1, 1).epoch
-  MAX_VISITED_AT = Time.new(2015, 1, 1).epoch
-
   def initialize(storage_visit)
     @id = storage_visit.id
     @user = storage_visit.user
@@ -192,10 +184,20 @@ class Visit < StorageVisit
       bad_request! if i != id
     end
     update_visit.id = id
-    update_visit.visited_at.on_presence do |vat|
-      if vat < MIN_VISITED_AT || vat > MAX_VISITED_AT
-        bad_request!
+    # checks before any assignments
+    update_visit.user.on_presence do |u|
+      if u == user
+        update_visit.user = ValueAbsence.absence
+        next
       end
+      bad_request! unless Users.has_key?(u)
+    end
+    update_visit.location.on_presence do |l|
+      if l == location
+        update_visit.location = ValueAbsence.absence
+        next
+      end
+      bad_request! unless Locations.has_key?(l)
     end
     update_visit.mark.on_presence do |m|
       if m > 5 # unsigned
@@ -205,15 +207,11 @@ class Visit < StorageVisit
     end
     # to optimize
     update_visit.user.on_presence do |u|
-      next if u == user
-      bad_request! unless Users.has_key?(u)
       Users[user].visits.delete(self)
       self.user = u
       Users[user].push_visit self
     end
     update_visit.location.on_presence do |l|
-      next if l == location
-      bad_request! unless Locations.has_key?(l)
       Locations[location].visits.delete(self)
       self.location = l
       Locations[location].push_visit self
@@ -371,7 +369,7 @@ server = HTTP::Server.new("0.0.0.0", 80, middlewares) do |context|
         JSON.build(context.response) do |json|
           # one of binary searches wrong and need some investigation
           if !from_date.nil?
-            idx = dated_visits.bsearch_index { |x, i| x.visited_at > from_date }
+            idx = dated_visits.bsearch_index { |x, i| x.visited_at >= from_date }
             unless idx.nil?
               dated_visits = dated_visits[idx, dated_visits.size - idx]
             end
