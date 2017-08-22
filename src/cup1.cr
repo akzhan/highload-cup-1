@@ -94,6 +94,13 @@ class User < StorageUser
     update_user.id.on_presence do |i|
       bad_request! if i != id
     end
+
+    update_user.first_name.not_nil!
+    update_user.last_name.not_nil!
+    update_user.birth_date.not_nil!
+    update_user.email.not_nil!
+    update_user.gender.not_nil!
+
     update_user.gender.on_presence do |g|
       # checks before any assignments
       if g != "m" && g != "f"
@@ -111,7 +118,7 @@ class User < StorageUser
       self.birth_date = bd
     end
     update_user.email.on_presence do |e|
-      self.email = e.not_nil!
+      self.email = e
     end
   end
 
@@ -144,6 +151,12 @@ class Location < StorageLocation
     update_location.id.on_presence do |i|
       bad_request! if i != id
     end
+
+    update_location.country.not_nil!
+    update_location.city.not_nil!
+    update_location.distance.not_nil!
+    update_location.place.not_nil!
+
     update_location.country.on_presence do |c|
       self.country = c
     end
@@ -183,20 +196,26 @@ class Visit < StorageVisit
       bad_request! if i != id
     end
     update_visit.id = id
+
     # checks before any assignments
+    update_visit.user.not_nil!
+    update_visit.location.not_nil!
+    update_visit.mark.not_nil!
+    update_visit.visited_at.not_nil!
+
     update_visit.user.on_presence do |u|
       if u == user
         update_visit.user = ValueAbsence.absence
-        next
+      else
+        bad_request! unless Users.has_key?(u)
       end
-      bad_request! unless Users.has_key?(u)
     end
     update_visit.location.on_presence do |l|
       if l == location
         update_visit.location = ValueAbsence.absence
-        next
+      else
+        bad_request! unless Locations.has_key?(l)
       end
-      bad_request! unless Locations.has_key?(l)
     end
     update_visit.mark.on_presence do |m|
       if m > 5 # unsigned
@@ -315,7 +334,7 @@ end
 def get_uint_param(params, key)
   value = get_int_param(params, key)
   return nil if value.nil?
-  bad_request! if value < 0
+  # bad_request! if value < 0
   value
 end
 
