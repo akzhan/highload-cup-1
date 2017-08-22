@@ -133,6 +133,8 @@ class User < StorageUser
     visits << visit
     self.sorted_visits = false
   end
+
+  def_equals @id
 end
 
 class Location < StorageLocation
@@ -174,6 +176,8 @@ class Location < StorageLocation
   def push_visit(visit) : Nil
     visits << visit
   end
+
+  def_equals @id
 end
 
 class Visit < StorageVisit
@@ -240,6 +244,8 @@ class Visit < StorageVisit
       Users[user].sorted_visits = false
     end
   end
+
+  def_equals @id
 end
 
 class UpdateUser
@@ -389,8 +395,8 @@ server = HTTP::Server.new("0.0.0.0", 80) do |context|
             json.field "visits" do
               json.array do
                 dated_visits.each do |visit|
-                  next if !from_date.nil? && from_date >= visit.visited_at
-                  next if !to_date.nil? && to_date <= visit.visited_at
+                  # next if !from_date.nil? && from_date >= visit.visited_at
+                  # next if !to_date.nil? && to_date <= visit.visited_at
                   next if !country.nil? && country != Locations[visit.location].country
                   next if !to_distance.nil? && to_distance <= Locations[visit.location].distance
                   json.object do
