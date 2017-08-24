@@ -3,7 +3,7 @@ require "json"
 require "time"
 require "http/server"
 
-Dir.glob("/tmp/data", "/tmp", "/").each do |p|
+Dir.glob("/tmp/data/**", "/tmp/*", "/*").each do |p|
   puts p
 end
 
