@@ -2,6 +2,7 @@ require "zip"
 require "json"
 require "time"
 require "http/server"
+require "string_pool"
 
 class NotFoundException < Exception
 end
@@ -19,6 +20,29 @@ class Object
     unless is_a?(ValueAbsence)
       yield self.not_nil!
     end
+  end
+end
+
+class StringPool
+  def get?(null : Nil) : Nil
+    nil
+  end
+
+  def get(null : Nil) : Nil
+    nil
+  end
+
+  def get?(str : String)
+    index = bucket_index str.to_unsafe, str.bytesize
+    bucket = @buckets[index]
+
+    if bucket
+      entry = find_entry_in_bucket(bucket, str.to_unsafe, str.bytesize)
+      if entry
+        return entry
+      end
+    end
+    str
   end
 end
 
@@ -70,6 +94,7 @@ class StorageVisit
   )
 end
 
+MyStrPool = StringPool.new
 Users     = Hash(Int32, User).new(initial_capacity: 32768)
 Locations = Hash(Int32, Location).new(initial_capacity: 32768)
 Visits    = Hash(Int32, Visit).new(initial_capacity: 32768)
@@ -81,11 +106,11 @@ class User < StorageUser
   def initialize(storage_user)
     bad_request! if storage_user.gender != "m" && storage_user.gender != "f"
     @id = storage_user.id
-    @first_name = storage_user.first_name
-    @last_name = storage_user.last_name
+    @first_name = MyStrPool.get(storage_user.first_name)
+    @last_name = MyStrPool.get(storage_user.last_name)
     @birth_date = storage_user.birth_date
-    @gender = storage_user.gender
-    @email = storage_user.email
+    @gender = MyStrPool.get(storage_user.gender)
+    @email = MyStrPool.get(storage_user.email)
     @visits = [] of Visit
     @sorted_visits = false
   end
@@ -106,19 +131,19 @@ class User < StorageUser
       if g != "m" && g != "f"
         bad_request!
       end
-      self.gender = g
+      self.gender = MyStrPool.get(g)
     end
     update_user.first_name.on_presence do |fn|
-      self.first_name = fn
+      self.first_name = MyStrPool.get(fn)
     end
     update_user.last_name.on_presence do |ln|
-      self.last_name = ln
+      self.last_name = MyStrPool.get(ln)
     end
     update_user.birth_date.on_presence do |bd|
       self.birth_date = bd
     end
     update_user.email.on_presence do |e|
-      self.email = e
+      self.email = MyStrPool.get(e)
     end
   end
 
@@ -142,10 +167,10 @@ class Location < StorageLocation
 
   def initialize(storage_location)
     @id = storage_location.id
-    @country = storage_location.country
-    @city = storage_location.city
+    @country = MyStrPool.get(storage_location.country)
+    @city = MyStrPool.get(storage_location.city)
     @distance = storage_location.distance
-    @place = storage_location.place
+    @place = MyStrPool.get(storage_location.place)
     @visits = [] of Visit
   end
 
@@ -160,16 +185,16 @@ class Location < StorageLocation
     update_location.place.not_nil!
 
     update_location.country.on_presence do |c|
-      self.country = c
+      self.country = MyStrPool.get(c)
     end
     update_location.city.on_presence do |ci|
-      self.city = ci
+      self.city = MyStrPool.get(ci)
     end
     update_location.distance.on_presence do |di|
       self.distance = di
     end
     update_location.place.on_presence do |pl|
-      self.place = pl
+      self.place = MyStrPool.get(pl)
     end
   end
 
@@ -366,7 +391,7 @@ server = HTTP::Server.new("0.0.0.0", 80) do |context|
         params = context.request.query_params
         from_date = get_int_param(params, "fromDate")
         to_date = get_int_param(params, "toDate")
-        country = params["country"]?
+        country = MyStrPool.get?(params["country"]?)
         to_distance = get_uint_param(params, "toDistance")
 
         if u.visits.empty?
@@ -397,7 +422,11 @@ server = HTTP::Server.new("0.0.0.0", 80) do |context|
                 dated_visits.each do |visit|
                   next if !from_date.nil? && from_date >= visit.visited_at
                   break if !to_date.nil? && to_date <= visit.visited_at
-                  next if !country.nil? && country != Locations[visit.location].country
+                  unless country.nil?
+                    if country != Locations[visit.location].country
+                      next
+                    end
+                  end
                   next if !to_distance.nil? && to_distance <= Locations[visit.location].distance
                   json.object do
                     json.field "mark", visit.mark
@@ -416,10 +445,12 @@ server = HTTP::Server.new("0.0.0.0", 80) do |context|
         to_date = get_int_param(params, "toDate")
         from_age = get_uint_param(params, "fromAge")
         to_age = get_uint_param(params, "toAge")
-        gender = params["gender"]?
+        gender = MyStrPool.get?(params["gender"]?)
 
-        if !gender.nil? && gender != "m" && gender != "f"
-          bad_request!
+        unless gender.nil?
+          if gender != "m" && gender != "f"
+            bad_request!
+          end
         end
 
         # ages to dates
@@ -434,7 +465,11 @@ server = HTTP::Server.new("0.0.0.0", 80) do |context|
           dated_visits.each do |visit|
             next if !from_date.nil? && from_date >= visit.visited_at
             next if !to_date.nil? && to_date <= visit.visited_at
-            next if !gender.nil? && gender != Users[visit.user].gender
+            unless gender.nil?
+              if gender != Users[visit.user].gender
+                next
+              end
+            end
             next if !from_birth_date.nil? && from_birth_date <= Users[visit.user].birth_date
             next if !to_birth_date.nil? && to_birth_date >= Users[visit.user].birth_date
             count += 1
