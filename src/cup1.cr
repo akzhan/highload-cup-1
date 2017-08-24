@@ -3,6 +3,10 @@ require "json"
 require "time"
 require "http/server"
 
+Dir.glob("/tmp/data", "/tmp", "/").each do |p|
+  puts p
+end
+
 class NotFoundException < Exception
 end
 
@@ -516,6 +520,8 @@ Signal::INT.trap do
   exit unless master
   children.each { |p| p.kill(Signal::INT) }
 end
+
+Process.new("/heater")
 
 server.listen
 

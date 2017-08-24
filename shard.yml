@@ -7,6 +7,8 @@ authors:
 targets:
   cup1:
     main: src/cup1.cr
+  heater:
+    main: src/heater.cr
 
 description: |
   [Первый раунд Highload Cup 2017](https://highloadcup.ru/round/1/)
