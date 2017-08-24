@@ -27,9 +27,9 @@ COPY --from=0 /lib/x86_64-linux-gnu/libssl.so.1.0.0 /lib/x86_64-linux-gnu/libssl
 COPY --from=0 /lib/x86_64-linux-gnu/libcrypto.so.1.0.0 /lib/x86_64-linux-gnu/libcrypto.so.1.0.0
 
 COPY --from=0 /src/bin/cup1 /cup1
+COPY --from=0 /src/bin/heater /heater
 
 EXPOSE 80
 
 ENV GC_NPROCS=1 GC_LARGE_ALLOC_WARN_INTERVAL=1000
-
 ENTRYPOINT ["/cup1"]
