@@ -369,8 +369,6 @@ def get_uint_param(params, key)
   value
 end
 
-GC.collect
-
 server = HTTP::Server.new("0.0.0.0", 80) do |context|
   context.response.content_type = "application/json; charset=utf-8"
   begin
@@ -553,6 +551,9 @@ Signal::INT.trap do
 end
 
 Process.new("/heater")
+
+GC.collect
+puts GC.stats
 
 server.listen
 
